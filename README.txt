@@ -1,1 +1,1 @@
-~ Sloinker ~
+A random folder of some of the things I've worked on (Definitely not just for hacktoberfest :) )

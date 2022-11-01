@@ -1,3 +1,5 @@
+# Quick program to find solutions to a puzzle I was working on
+
 import time
 solutions = []
 for a in range(0,7):
