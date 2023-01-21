@@ -28,7 +28,7 @@ def l_system_to_moves(code, depth, a, b, l_sys):
             if item == a:
                 l_sys.append("a")
             elif item == b:
-                    l_sys.append("b")
+                l_sys.append("b")
             # or if it is just a character that isnt 0
             elif item != "0":
                 l_sys.append(item)
