@@ -1,1 +1,1 @@
-A random folder of some of the things I've worked on (Definitely not just for hacktoberfest :) )
+A folder of some of the random python projects I've created.
