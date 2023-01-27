@@ -3,6 +3,34 @@ import matplotlib.cm as cm
 import random
 import math
 
+width, height = 1500, 900
+num_points = 10
+time_step_scale = 0.001
+trail_length = 500
+spread = 10
+colours = [[255 * x for x in cm.gnuplot2  (i/trail_length)[:3]] for i in range(trail_length)]
+
+pg.init()
+size = [width, height]
+screen = pg.display.set_mode(size)
+pg.display.set_caption("Attractor")
+
+done = False
+clock = pg.time.Clock()
+old_time = 0
+
+points = []
+points_transformed = []
+trails = []
+trails_transformed = []
+
+COR = [0,0,0]
+translate = [11,201]
+zoom = 14
+z_angle = -0.25
+x_angle = -1.78
+
+
 def rotateZ(coord, origin, radians):        
     delx = coord[0] - origin[0]
     dely = coord[1] - origin[1]
@@ -23,44 +51,51 @@ def rotateX(coord, origin, radians):
     return [coord[0], newy, newz]
 
 
-pg.init()
-width, height = 1500, 900
-size = [width, height]
-screen = pg.display.set_mode(size)
-pg.display.set_caption("Attractor")
+def move_attractor_points(type, points, trails):
 
-done = False
-clock = pg.time.Clock()
-old_time = 0
+    for i, point in enumerate(points):
+        x, y, z = point
 
-points = []
-points_transformed = []
-trails = []
-trails_transformed = []
+        if type == "Halvorsen":
+            a = 1.89
 
-#Halvorsen var
-a = 1.89
+            dx = dt*(-a*x - 4*y - 4*z - y**2)
+            dy = dt*(-a*y - 4*x - 4*z - z**2)
+            dz = dt*(-a*z - 4*x - 4*y - x**2)
+        
+        elif type == "Sprott":
+            b = 2.07
+            c = 1.79
 
-#Sprott
-b = 2.07
-c = 1.79
+            dx = dt*(y + b*x*y + x*z)
+            dy = dt*(1 - c*x**2 + y*z)
+            dz = dt*(x - x**2 - y**2)
+        
+        elif type == "Rossler":
+            d=0.2
+            e=0.2
+            f=5.7
 
-#Rossler
-d=0.2
-e=0.2
-f=5.7
+            dx = dt*(-y - z)
+            dy = dt*(x + d*y)
+            dz = dt*(e + z*(x - f))
 
-COR = [0,0,0]
+        elif type == "Thomas":
+            g = -0.19
 
-translate = [0,0]
-zoom = 30
-z_angle = 0
-x_angle = 0
+            dx = dt*(g*x + math.sin(y))
+            dy = dt*(g*y + math.sin(z))
+            dz = dt*(g*z + math.sin(x))
+        
+        x += dx
+        y += dy
+        z += dz
 
-num_points = 10
-trail_length = 1000
-spread = 0.1
-colours = [[255 * x for x in cm.bone(i/trail_length)[:3]] for i in range(trail_length)]
+        points[i] = [x,y,z]
+        trails[i].append([x, y, z])
+
+    return points, trails
+
 
 for i in range(num_points):
     points.append([random.random()*spread-spread/2,random.random()*spread-spread/2,random.random()*spread-spread/2])
@@ -68,6 +103,9 @@ for i in range(num_points):
 
 while not done:
     clock.tick(60)
+
+    if pg.key.get_pressed()[pg.K_p] == True:
+        print(x_angle, z_angle, zoom, translate, "\n\n")
 
     if pg.key.get_pressed()[pg.K_UP] == True:
         x_angle += 0.01
@@ -96,45 +134,11 @@ while not done:
             done = True
 
     new_time = pg.time.get_ticks() 
-    dt = (new_time - old_time) / 2000
+    dt = (new_time - old_time) * time_step_scale
     old_time = new_time
+
+    points, trails = move_attractor_points("Rossler", points, trails)
     
-    # Halvorsen
-    """for i, point in enumerate(points):
-        dx = dt*(-a*point[0] - 4*point[1] - 4*point[2] - point[1]**2)
-        dy = dt*(-a*point[1] - 4*point[0] - 4*point[2] - point[2]**2)
-        dz = dt*(-a*point[2] - 4*point[0] - 4*point[1] - point[0]**2)
-        
-        point[0] += dx
-        point[1] += dy
-        point[2] += dz
-
-        trails[i].append([point[0], point[1], point[2]])"""
-    
-    # Sprott
-    for i, point in enumerate(points):
-        dx = dt*(point[1] + b*point[0]*point[1] + point[0]*point[2])
-        dy = dt*(1 - c*point[0]**2 + point[1]*point[2])
-        dz = dt*(point[0] - point[0]**2 - point[1]**2)
-        
-        point[0] += dx
-        point[1] += dy
-        point[2] += dz
-
-        trails[i].append([point[0], point[1], point[2]])
-
-    # Rossler
-    """for i, point in enumerate(points):
-        dx = dt*(-point[1] - point[2])
-        dy = dt*(point[0] + d*point[1])
-        dz = dt*(e + point[2]*(point[0] - f))
-        
-        point[0] += dx
-        point[1] += dy
-        point[2] += dz
-
-        trails[i].append([point[0], point[1], point[2]])"""
-
     points_transformed = []
     trails_transformed = []
 
