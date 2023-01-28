@@ -135,7 +135,34 @@ def add_openings(cells):
     cells[0][1] = 1
     cells[-1][-2] = 1
     return cells
-                    
+
+
+def automata_dead_end_solve_step(cells):
+    hei, wid = len(cells), len(cells[0])
+    newgrid = np.zeros((hei, wid))
+    vects = [(1,0),(0,1),(-1,0),(0,-1)]
+
+    for y in range(1, hei-1):
+        for x in range(1, wid-1):
+
+            if cells[y][x] == 1:
+                neighbours = 0
+                for vect in vects:
+                    if cells[y+vect[0]][x+vect[1]] in [0,2]:
+                        neighbours += 1
+            
+                if neighbours == 3:
+                    newgrid[y][x] = 2
+                else:
+                    newgrid[y][x] = 1
+            
+            else:
+                newgrid[y][x] = cells[y][x]
+
+    newgrid[0][1] = 1
+    newgrid[-1][-2] = 1
+    return newgrid
+            
 
 cell_size = 10
 maze_width, maze_height = 50, 25
@@ -163,6 +190,7 @@ while not done:
     screen.fill((0,0,0))
 
     draw_cells(cells)
+    cells = automata_dead_end_solve_step(cells)
 
     pg.display.flip()
 
