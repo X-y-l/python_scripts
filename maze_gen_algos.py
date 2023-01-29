@@ -71,7 +71,7 @@ def random_maze(width, height):
     return maze
 
 
-def gen_recur_div_maze(width, height):
+def gen_maze_recur_div(width, height):
     horiz_walls = np.zeros((height-1, width))
     vert_walls = np.zeros((height, width-1))
 
@@ -91,7 +91,7 @@ def gen_recur_div_maze(width, height):
         horiz_walls[split][gap] = 1
 
         # Top
-        new_vert, new_horiz = gen_recur_div_maze(width, split+1)
+        new_vert, new_horiz = gen_maze_recur_div(width, split+1)
 
         if (new_vert.shape[1] != 0):
             vert_walls[:new_vert.shape[0], -new_vert.shape[1]:] = new_vert
@@ -99,7 +99,7 @@ def gen_recur_div_maze(width, height):
             horiz_walls[:new_horiz.shape[0], -new_horiz.shape[1]:] = new_horiz
 
         # Bottom
-        new_vert, new_horiz = gen_recur_div_maze(width, height-(split+1))
+        new_vert, new_horiz = gen_maze_recur_div(width, height-(split+1))
 
         if (new_vert.shape[1] != 0):
             vert_walls[-new_vert.shape[0]:, -new_vert.shape[1]:] = new_vert
@@ -113,7 +113,7 @@ def gen_recur_div_maze(width, height):
         vert_walls[gap][split] = 1
 
         # Left
-        new_vert, new_horiz = gen_recur_div_maze(split+1, height)
+        new_vert, new_horiz = gen_maze_recur_div(split+1, height)
 
         if (new_vert.shape[1] != 0):
             vert_walls[:new_vert.shape[0], :new_vert.shape[1]] = new_vert
@@ -121,7 +121,7 @@ def gen_recur_div_maze(width, height):
             horiz_walls[:new_horiz.shape[0], :new_horiz.shape[1]] = new_horiz
         
         # Right
-        new_vert, new_horiz = gen_recur_div_maze(width-(split+1), height)
+        new_vert, new_horiz = gen_maze_recur_div(width-(split+1), height)
 
         if (new_vert.shape[1] != 0):
             vert_walls[:new_vert.shape[0], -new_vert.shape[1]:] = new_vert
@@ -129,6 +129,36 @@ def gen_recur_div_maze(width, height):
             horiz_walls[:new_horiz.shape[0], -new_horiz.shape[1]:] = new_horiz
 
     return vert_walls, horiz_walls
+
+
+def gen_maze_aldous_broder(width, height):
+    grid = np.zeros((height,width))
+    horiz_walls = np.zeros((height-1, width))
+    vert_walls = np.zeros((height, width-1))
+    vects = [[1,0], [-1,0], [0,1], [0,-1]]
+
+    current_cell = [0, 0] # x,y
+    grid[current_cell[1]][current_cell[0]] = 1
+
+    while np.sum(grid) != width * height:
+        direction = vects[random.randint(0,3)]
+        current_cell = np.add(current_cell,direction)
+
+        if not (current_cell[1] in [-1, height] or current_cell[0] in [-1, width]): # makes sure inside borders
+            if grid[current_cell[1]][current_cell[0]] != 1: # not yet visited
+
+                if direction in [[1,0], [-1,0]]: # moving right or left
+                    vert_walls[current_cell[1]][current_cell[0] - (direction == [1,0])] = 1
+
+                else:                            # moving up or down
+                    horiz_walls[current_cell[1] - (direction == [0,1])][current_cell[0]] = 1
+
+                grid[current_cell[1]][current_cell[0]] = 1 # set as visited
+
+        else: # if fell outside borders, move it back
+            current_cell = np.add(current_cell, np.negative(direction))
+
+    return [vert_walls, horiz_walls]
 
 
 def add_openings(cells):
@@ -151,7 +181,7 @@ def automata_dead_end_solve_step(cells):
                     if cells[y+vect[0]][x+vect[1]] in [0,2]:
                         neighbours += 1
             
-                if neighbours == 3:
+                if neighbours in [3,4]:
                     newgrid[y][x] = 2
                 else:
                     newgrid[y][x] = 1
@@ -162,14 +192,12 @@ def automata_dead_end_solve_step(cells):
     newgrid[0][1] = 1
     newgrid[-1][-2] = 1
     return newgrid
-            
+ 
 
 cell_size = 10
-maze_width, maze_height = 50, 25
-births, survives = code_str_to_lists("B5678/S45678")
-
-maze = gen_recur_div_maze(maze_width, maze_height)
-cells = add_openings(maze_to_cells(maze))
+maze_width, maze_height = 50,25
+cells = maze_to_cells(gen_maze_aldous_broder(maze_width, maze_height))
+add_openings(cells)
 
 pg.init()
 screen_width, screen_height = len(cells[0]) * cell_size, len(cells) * cell_size
@@ -188,9 +216,8 @@ while not done:
             done = True
 
     screen.fill((0,0,0))
-
-    draw_cells(cells)
     cells = automata_dead_end_solve_step(cells)
+    draw_cells(cells)
 
     pg.display.flip()
 
