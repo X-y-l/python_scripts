@@ -3,6 +3,11 @@ import pygame as pg
 import random
 import math
 
+# to add:
+# maze gens: sidewinder, ellers, prims, kruskals, recursive backtrack, wilsons
+# maze solvers: right hand rule, left hand rule, A*, 
+
+# a "river" measure, ie how long corridoors tend to be from a given algorithm
 
 def code_str_to_lists(code):
     code = code.split("/")
@@ -158,7 +163,27 @@ def gen_maze_aldous_broder(width, height):
         else: # if fell outside borders, move it back
             current_cell = np.add(current_cell, np.negative(direction))
 
-    return [vert_walls, horiz_walls]
+    return vert_walls, horiz_walls
+
+
+def gen_maze_bin_tree(width, height):
+
+    horiz_walls = np.zeros((height-1, width))
+    vert_walls = np.zeros((height, width-1))
+
+    for y in range(height):
+        for x in range(width):
+            if not (y == height - 1 and x == width - 1):
+                if y == height - 1:
+                    vert_walls[y][x] = 1
+                elif x == width - 1:
+                    horiz_walls[y][x] = 1
+                elif random.random() < 0.5: # carve right
+                    vert_walls[y][x] = 1
+                else:                       # carve down
+                    horiz_walls[y][x] = 1
+
+    return vert_walls, horiz_walls
 
 
 def add_openings(cells):
@@ -167,7 +192,7 @@ def add_openings(cells):
     return cells
 
 
-def automata_dead_end_solve_step(cells):
+def solve_maze_dead_end_step(cells):
     hei, wid = len(cells), len(cells[0])
     newgrid = np.zeros((hei, wid))
     vects = [(1,0),(0,1),(-1,0),(0,-1)]
@@ -196,7 +221,7 @@ def automata_dead_end_solve_step(cells):
 
 cell_size = 10
 maze_width, maze_height = 50,25
-cells = maze_to_cells(gen_maze_aldous_broder(maze_width, maze_height))
+cells = maze_to_cells(gen_maze_bin_tree(maze_width, maze_height))
 add_openings(cells)
 
 pg.init()
@@ -216,7 +241,7 @@ while not done:
             done = True
 
     screen.fill((0,0,0))
-    cells = automata_dead_end_solve_step(cells)
+    cells = solve_maze_dead_end_step(cells)
     draw_cells(cells)
 
     pg.display.flip()
