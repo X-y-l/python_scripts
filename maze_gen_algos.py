@@ -5,10 +5,19 @@ import math
 
 # to add:
 # maze gens: sidewinder, ellers, prims, kruskals, recursive backtrack, wilsons
-# maze solvers: right hand rule, left hand rule, A*, 
+# maze solvers: right hand rule, left hand rule, A*, dijkstras
+
+# is solving from start and end simultaneously better?
 
 # a "river" measure, ie how long corridoors tend to be from a given algorithm
+# a twistyness measure, ie maximum stack depth required by a recursive backtracker
+# a difficulty measure, ie a sort of heuristic using combination of twistiness,
+# solution length, 
 
+# cellular automata: only check specific neighbours based on position (x+y mod 4, fan shape)?
+# random neighbour check?
+
+# function that turns the rulestring for a lifelike cellular automaton (ie B3/S23) and decomposes it into two lists (ie [3], [2,3])
 def code_str_to_lists(code):
     code = code.split("/")
     births, survives = [int(x) for x in [*code][0][1:]], [int(y) for y in [*code][1][1:]]
@@ -16,20 +25,25 @@ def code_str_to_lists(code):
     return births, survives
 
 
+# randomizes the radius by radius square in the middle of a grid of cells (randomly chooses to set them as 0s or 1s)
 def randomize_center(cells, radius):
-    for y in range(math.floor(maze_height/2 - radius), math.floor(maze_height/2 + radius)):
-        for x in range(math.floor(maze_width/2 - radius), math.floor(maze_width/2 + radius)):
+    height, width = len(cells), len(cells[0])
+    for y in range(math.floor(height/2 - radius), math.ceil(height/2 + radius)):
+        for x in range(math.floor(width/2 - radius), math.ceil(width/2 + radius)):
             cells[y][x] = random.randint(0,1)
 
 
+# sums up the value of cells in the Moore neighbourhood of a given cell
 def sum_surrounding_cells(cells, x, y):
     return np.sum(cells[np.ix_([y-1,y,y+1],[x-1,x,x+1])]) - cells[y][x]
 
 
+# performs one step of a life-like cellular automaton
 def lifelike_step(cells, birth, survive):
-    newgrid = np.zeros((maze_height, maze_width))
-    for y in range(1, maze_height-1):
-        for x in range(1, maze_width-1):
+    height, width = len(cells), len(cells[0])
+    newgrid = np.zeros((height, width))
+    for y in range(1, height-1):
+        for x in range(1, width-1):
             neighbours = sum_surrounding_cells(cells, x, y)
             if neighbours in birth and cells[y][x] == 0:
                 newgrid[y][x] = 1
@@ -40,15 +54,14 @@ def lifelike_step(cells, birth, survive):
     return newgrid
 
 
-def draw_cells(cells):
+# takes a grid of cells and draws them to the screen with the corresponding colour
+def draw_cells(cells, cols, cell_size, screen):
     for y, line in enumerate(cells):
         for x, cell in enumerate(line):
-            if cell == 1:
-                pg.draw.rect(screen, (255,255,255), (x*cell_size, y*cell_size, cell_size, cell_size))
-            if cell == 2:
-                pg.draw.rect(screen, (0,255,0), (x*cell_size, y*cell_size, cell_size, cell_size))
+            pg.draw.rect(screen, cols[int(cell)], (x*cell_size, y*cell_size, cell_size, cell_size))
 
 
+# takes the lists containing wall locations, and turns it into a grid of cells where each cell is either a path or a wall.
 def maze_to_cells(maze):
     vert_walls, horiz_walls = maze[0], maze[1]
     cells_height, cells_width = 2*len(vert_walls) + 1, 2*len(horiz_walls[0])+1
@@ -68,6 +81,7 @@ def maze_to_cells(maze):
     return cells
 
 
+# generates a "maze" where it randomly chooses each wall to be either on or off
 def random_maze(width, height):
     horiz_walls = np.random.randint(0, 2, size=(height-1, width))
     vert_walls = np.random.randint(0, 2, size=(height, width-1))
@@ -76,6 +90,7 @@ def random_maze(width, height):
     return maze
 
 
+# generates a maze using recursive division
 def gen_maze_recur_div(width, height):
     horiz_walls = np.zeros((height-1, width))
     vert_walls = np.zeros((height, width-1))
@@ -136,6 +151,7 @@ def gen_maze_recur_div(width, height):
     return vert_walls, horiz_walls
 
 
+# generates a maze using the Aldous-Broder algorithm
 def gen_maze_aldous_broder(width, height):
     grid = np.zeros((height,width))
     horiz_walls = np.zeros((height-1, width))
@@ -145,7 +161,7 @@ def gen_maze_aldous_broder(width, height):
     current_cell = [0, 0] # x,y
     grid[current_cell[1]][current_cell[0]] = 1
 
-    while np.sum(grid) != width * height:
+    while np.sum(grid) != width * height: # while not all cells have been visited
         direction = vects[random.randint(0,3)]
         current_cell = np.add(current_cell,direction)
 
@@ -166,8 +182,8 @@ def gen_maze_aldous_broder(width, height):
     return vert_walls, horiz_walls
 
 
+# generates a maze using the binary tree algorithm
 def gen_maze_bin_tree(width, height):
-
     horiz_walls = np.zeros((height-1, width))
     vert_walls = np.zeros((height, width-1))
 
@@ -186,12 +202,53 @@ def gen_maze_bin_tree(width, height):
     return vert_walls, horiz_walls
 
 
+# generates a maze using the recursive backtracking algorithm
+def gen_maze_recur_backtrack(width, height):
+    horiz_walls = np.zeros((height-1, width))
+    vert_walls = np.zeros((height, width-1))
+    grid = np.zeros((height, width))
+    visited_stack = []
+    current_cell = [random.randint(0,width-1), random.randint(0,height-1)]
+    visited_stack.append(current_cell)
+    grid[current_cell[1]][current_cell[0]] = 1
+
+    vects = [[1,0], [-1,0], [0,1], [0,-1]]
+
+    while visited_stack != []: # while not all cells have been visited
+        current_cell = visited_stack.pop()
+        possible_neighbours = []
+        
+        for vect in vects:
+            if not (current_cell[1] + vect[1] in [-1, height] or current_cell[0] + vect[0] in [-1, width]):
+                if grid[current_cell[1] + vect[1]][current_cell[0] + vect[0]] == 0:
+                    possible_neighbours.append([current_cell[0] + vect[0], current_cell[1] + vect[1]])
+
+        if possible_neighbours != []:
+            visited_stack.append(current_cell)
+            next_cell = random.choice(possible_neighbours)
+            direction = [current_cell[0] - next_cell[0],  current_cell[1] - next_cell[1]]
+
+            if direction in [[1,0], [-1,0]]:
+                vert_walls[current_cell[1]][current_cell[0] - (direction == [1,0])] = 1
+            else:
+                horiz_walls[current_cell[1] - (direction == [0,1])][current_cell[0]] = 1
+
+            current_cell = next_cell
+            grid[current_cell[1]][current_cell[0]] = 1
+            visited_stack.append(current_cell)
+
+    return vert_walls, horiz_walls
+
+
+# takes a grid of cells representing a maze and makes holes at the top left and bottom right,
+# representing the entrance and exit to the maze
 def add_openings(cells):
     cells[0][1] = 1
     cells[-1][-2] = 1
     return cells
 
 
+# maze solving algorithm that works by repeatedly filling in dead ends
 def solve_maze_dead_end_step(cells):
     hei, wid = len(cells), len(cells[0])
     newgrid = np.zeros((hei, wid))
@@ -219,31 +276,36 @@ def solve_maze_dead_end_step(cells):
     return newgrid
  
 
-cell_size = 10
-maze_width, maze_height = 50,25
-cells = maze_to_cells(gen_maze_bin_tree(maze_width, maze_height))
-add_openings(cells)
+def main():
+    cell_size = 8
+    dimensions = maze_width, maze_height = 100, 50
+    cells = maze_to_cells(gen_maze_recur_backtrack(maze_width, maze_height))
+    add_openings(cells)
 
-pg.init()
-screen_width, screen_height = len(cells[0]) * cell_size, len(cells) * cell_size
-screen_size = [screen_width, screen_height]
-screen = pg.display.set_mode(screen_size)
-pg.display.set_caption("Automata stuff")
-clock = pg.time.Clock()
+    pg.init()
+    screen_width, screen_height = len(cells[0]) * cell_size, len(cells) * cell_size
+    screen_size = [screen_width, screen_height]
+    screen = pg.display.set_mode(screen_size)
+    pg.display.set_caption("Automata stuff")
+    clock = pg.time.Clock()
 
-done = False
+    done = False
 
-while not done:
-    clock.tick(60)
-    
-    for event in pg.event.get():
-        if event.type == pg.QUIT:
-            done = True
+    while not done:
+        clock.tick(60)
+        
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                done = True
 
-    screen.fill((0,0,0))
-    cells = solve_maze_dead_end_step(cells)
-    draw_cells(cells)
+        screen.fill((0,0,0))
+        cells = solve_maze_dead_end_step(cells)
+        draw_cells(cells, [(0,0,0), (0,255,255), (255,0,0)], cell_size, screen)
 
-    pg.display.flip()
+        pg.display.flip()
 
-pg.quit()
+    pg.quit()
+
+
+if __name__ == "__main__":
+    main()
