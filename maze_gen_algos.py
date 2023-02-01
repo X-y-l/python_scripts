@@ -4,10 +4,12 @@ import random
 import math
 
 # to add:
-# maze gens: sidewinder, ellers, prims, kruskals, recursive backtrack, wilsons
+# maze gens: sidewinder, ellers, prims, backtrack, wilsons, hunt & kill
 # maze solvers: right hand rule, left hand rule, A*, dijkstras
 
 # is solving from start and end simultaneously better?
+
+# can I incorperate music into maze algorithms somehow? (sort of like sorting algorithms)
 
 # a "river" measure, ie how long corridoors tend to be from a given algorithm
 # a twistyness measure, ie maximum stack depth required by a recursive backtracker
@@ -240,6 +242,56 @@ def gen_maze_recur_backtrack(width, height):
     return vert_walls, horiz_walls
 
 
+def gen_maze_kruskal(width, height):
+    horiz_walls = np.zeros((height-1, width))
+    vert_walls = np.zeros((height, width-1))
+    connected_cells = []
+
+    for x in range(width):
+        for y in range(height):
+            connected_cells.append([[x,y]])
+
+    rand_wall_index = np.arange(0, 2*width*height - width - height, 1)
+    np.random.shuffle(rand_wall_index)
+
+    while len(connected_cells) > 1:
+        current_wall_index, rand_wall_index = rand_wall_index[-1], rand_wall_index[:-1]
+        cell_groups = []
+
+        if current_wall_index < width * (height - 1): # select horiz wall
+            current_wall = [current_wall_index % width, current_wall_index // width]
+
+            for group in connected_cells:
+                if len(cell_groups) > 1:
+                    break
+                for cell in group:
+                    if cell in [[current_wall[0], current_wall[1]],[current_wall[0], current_wall[1]+1]]:
+                        cell_groups.append(group)
+
+            if cell_groups[0] != cell_groups[1]:
+                horiz_walls[current_wall[1]][current_wall[0]] = 1
+                connected_cells.remove(cell_groups[0]); connected_cells.remove(cell_groups[1])
+                connected_cells.append(cell_groups[0] + cell_groups[1])
+
+        else: # select vert wall
+            current_wall_index -= width * (height - 1)
+            current_wall = [current_wall_index % (width-1), current_wall_index // (width-1)]
+            
+            for group in connected_cells:
+                if len(cell_groups) > 1:
+                    break
+                for cell in group:
+                    if cell in [[current_wall[0], current_wall[1]],[current_wall[0]+1, current_wall[1]]]:
+                        cell_groups.append(group)
+
+            if cell_groups[0] != cell_groups[1]:
+                vert_walls[current_wall[1]][current_wall[0]] = 1
+                connected_cells.remove(cell_groups[0]); connected_cells.remove(cell_groups[1])
+                connected_cells.append(cell_groups[0] + cell_groups[1])
+
+    return vert_walls, horiz_walls
+
+
 # takes a grid of cells representing a maze and makes holes at the top left and bottom right,
 # representing the entrance and exit to the maze
 def add_openings(cells):
@@ -279,7 +331,7 @@ def solve_maze_dead_end_step(cells):
 def main():
     cell_size = 8
     dimensions = maze_width, maze_height = 100, 50
-    cells = maze_to_cells(gen_maze_recur_backtrack(maze_width, maze_height))
+    cells = maze_to_cells(gen_maze_kruskal(maze_width, maze_height))
     add_openings(cells)
 
     pg.init()
@@ -300,7 +352,7 @@ def main():
 
         screen.fill((0,0,0))
         cells = solve_maze_dead_end_step(cells)
-        draw_cells(cells, [(0,0,0), (0,255,255), (255,0,0)], cell_size, screen)
+        draw_cells(cells, [(0,0,0), (255,255,255), (150,150,150)], cell_size, screen)
 
         pg.display.flip()
 
