@@ -2,6 +2,9 @@ import numpy as np
 import pygame as pg
 import random
 import math
+import scipy.io.wavfile as wf
+
+##########################################################################################################################################
 
 # to add:
 # maze gens: sidewinder, ellers, prims, backtrack, wilsons, hunt & kill
@@ -14,10 +17,14 @@ import math
 # a "river" measure, ie how long corridoors tend to be from a given algorithm
 # a twistyness measure, ie maximum stack depth required by a recursive backtracker
 # a difficulty measure, ie a sort of heuristic using combination of twistiness,
-# solution length, 
+# solution length, possibly how far from the solution you can walk?, number of
+# junctions along the solution & how seemingly likely each of these junctions could be
+# (immediate dead ends << long windy corridors that lead to dead ends)
 
 # cellular automata: only check specific neighbours based on position (x+y mod 4, fan shape)?
 # random neighbour check?
+
+##########################################################################################################################################
 
 # function that turns the rulestring for a lifelike cellular automaton (ie B3/S23) and decomposes it into two lists (ie [3], [2,3])
 def code_str_to_lists(code):
@@ -81,6 +88,19 @@ def maze_to_cells(maze):
                 cells[y][x] = vert_walls[int((y-1)/2)][int((x-2)/2)]
 
     return cells
+
+
+def get_possible_neighbours(current_cell, grid, height, width, neighbour_val):
+    vects = [[1,0], [-1,0], [0,1], [0,-1]]
+    possible_neighbours = []
+    
+    for vect in vects:
+        if not (current_cell[1] + vect[1] in [-1, height] or current_cell[0] + vect[0] in [-1, width]):
+            if grid[current_cell[1] + vect[1]][current_cell[0] + vect[0]] == neighbour_val:
+                possible_neighbours.append([current_cell[0] + vect[0], current_cell[1] + vect[1]])
+    
+    return possible_neighbours
+
 
 
 # generates a "maze" where it randomly chooses each wall to be either on or off
@@ -154,6 +174,7 @@ def gen_maze_recur_div(width, height):
 
 
 # generates a maze using the Aldous-Broder algorithm
+# REWRITE WITH get_possible_neighbours FUNCTION
 def gen_maze_aldous_broder(width, height):
     grid = np.zeros((height,width))
     horiz_walls = np.zeros((height-1, width))
@@ -205,6 +226,7 @@ def gen_maze_bin_tree(width, height):
 
 
 # generates a maze using the recursive backtracking algorithm
+# REWRITE WITH get_possible_neighbours FUNCTION
 def gen_maze_recur_backtrack(width, height):
     horiz_walls = np.zeros((height-1, width))
     vert_walls = np.zeros((height, width-1))
@@ -328,21 +350,74 @@ def solve_maze_dead_end_step(cells):
     return newgrid
  
 
-def main():
-    cell_size = 8
-    dimensions = maze_width, maze_height = 100, 50
-    cells = maze_to_cells(gen_maze_kruskal(maze_width, maze_height))
-    add_openings(cells)
+def solve_maze_left_turns(cells, path):
+    height, width = len(cells), len(cells[0])
+    start, end = path
+    current_cell = start
+    directions = [[1,0], [0,1], [-1,0], [0,-1]]
+    current_direction_index = 0
+    visited_cells = [start]
+    cells[start[1]][start[0]] = 2
 
+    while current_cell != end:
+        rotating = True
+        i = current_direction_index-1 % 4
+        while rotating == True:
+            if current_cell[1]+directions[i][1] not in [-1, height] and current_cell[0]+directions[i][0] not in [-1, width]:
+                if cells[current_cell[1]+directions[i][1]][current_cell[0]+directions[i][0]] != 0:
+                    current_cell = [current_cell[0]+directions[i][0], current_cell[1]+directions[i][1]]
+                    cells[current_cell[1]][current_cell[0]] = 2
+                    visited_cells.append(current_cell)
+                    current_direction_index = i
+                    rotating = False
+
+            i += 1
+            i %= 4
+
+    return cells, visited_cells
+
+
+def generate_wave(hz, sineness, duration, vol, samplerate):
+    c = 2 * np.pi * hz / samplerate
+    samples = int(c * math.ceil(duration * samplerate / c))
+
+    if sineness == 0:
+        buffer = np.sign(np.ceil(np.arange(samples) * hz / samplerate) - np.arange(samples) * hz / samplerate - 0.5).astype(np.float32)
+    else:
+        buffer = np.sin(c * np.arange(samples)).astype(np.float32)
+        buffer = np.sign(buffer)*np.float_power(abs(buffer), sineness*np.ones(samples)).astype(np.float32)
+
+    return buffer*vol
+
+
+def main():
+    cell_size = 5
+    maze_width, maze_height = 15, 15
+    cells_width, cells_height = maze_width * 2 + 1, maze_height * 2 + 1
+    samplerate = 44100
+
+    cells = maze_to_cells(gen_maze_bin_tree(maze_width, maze_height))
+    add_openings(cells)
+    cells, path = solve_maze_left_turns(cells, [[1,0], [cells_width-2, cells_height-1]])
+
+    pg.mixer.pre_init(size = 32)
+    pg.mixer.init(size = 32)
     pg.init()
-    screen_width, screen_height = len(cells[0]) * cell_size, len(cells) * cell_size
+    screen_width, screen_height = cells_width * cell_size, cells_height * cell_size
     screen_size = [screen_width, screen_height]
     screen = pg.display.set_mode(screen_size)
-    pg.display.set_caption("Automata stuff")
     clock = pg.time.Clock()
 
-    done = False
+    buffer = []
+    for coord in path:
+        for y in generate_wave(50 + 700 * coord[1] / cells_width, coord[0] / cells_height, 0.1, 0.7, samplerate):
+            buffer.append(y)
 
+    buffer = np.array(buffer).astype(np.float32)
+
+    wf.write('maze_sound.wav', samplerate, buffer)
+
+    done = False
     while not done:
         clock.tick(60)
         
@@ -351,13 +426,11 @@ def main():
                 done = True
 
         screen.fill((0,0,0))
-        cells = solve_maze_dead_end_step(cells)
         draw_cells(cells, [(0,0,0), (255,255,255), (150,150,150)], cell_size, screen)
-
         pg.display.flip()
 
     pg.quit()
-
+    
 
 if __name__ == "__main__":
     main()
